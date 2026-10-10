@@ -8,6 +8,12 @@ $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
+# 让 Python 子进程和 PowerShell 都用 UTF-8 说话。
+# 中文 Windows 的控制台默认是 GBK，不设这个的话 Python 打印的中文会变成乱码。
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+
 function Say($msg) { Write-Host $msg }
 function Line { Write-Host ("-" * 60) }
 
@@ -26,33 +32,55 @@ Write-Host "============================================================"
 Write-Host ""
 
 # ---------------------------------------------------------------- 1/5 找 Python
-# 先看 PATH，再翻常见安装目录 —— 很多人装的时候忘了勾 "Add python.exe to PATH"。
-$candidates = @()
-foreach ($cmd in @("python", "py")) {
-    if (Get-Command $cmd -ErrorAction SilentlyContinue) { $candidates += $cmd }
+# 顺序很重要：先看有没有现成的 .venv。
+# 只要 .venv 是好的就直接用它 —— 这时候就算系统里没装 Python（或者 python 命令是
+# 微软商店的占位符）也无所谓。任务计划程序跑的时候 PATH 和交互式会话不一样，
+# 这一步能救命。
+function Get-PythonVersion($exe) {
+    try {
+        $out = & $exe -c "import sys;print('%d.%d.%d' % sys.version_info[:3])" 2>$null
+        if ($LASTEXITCODE -eq 0 -and "$out".Trim()) { return "$out".Trim() }
+    }
+    catch { }
+    return $null
 }
-foreach ($pattern in @(
-        "C:\Python3*\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe",
-        "C:\Program Files\Python3*\python.exe",
-        "C:\Program Files (x86)\Python3*\python.exe")) {
-    foreach ($hit in (Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue)) {
-        $candidates += $hit.FullName
+
+$venvPy = Join-Path $root ".venv\Scripts\python.exe"
+$python = $null
+$pyver = $null
+
+if (Test-Path $venvPy) {
+    $pyver = Get-PythonVersion $venvPy
+    if ($pyver) {
+        $python = $venvPy
+        Say "[1/5] 使用已有的运行环境（Python $pyver）"
     }
 }
 
-$python = $null
-$pyver = $null
-foreach ($cand in $candidates) {
-    try {
-        $out = & $cand -c "import sys;print('%d.%d.%d' % sys.version_info[:3])" 2>$null
-        if ($LASTEXITCODE -eq 0 -and "$out".Trim()) {
+if (-not $python) {
+    Say "[1/5] 还没建运行环境，先找系统里的 Python..."
+    # 先看 PATH，再翻常见安装目录 —— 很多人装的时候忘了勾 "Add python.exe to PATH"。
+    $candidates = @()
+    foreach ($cmd in @("python", "py")) {
+        if (Get-Command $cmd -ErrorAction SilentlyContinue) { $candidates += $cmd }
+    }
+    foreach ($pattern in @(
+            "C:\Python3*\python.exe",
+            "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe",
+            "C:\Program Files\Python3*\python.exe",
+            "C:\Program Files (x86)\Python3*\python.exe")) {
+        foreach ($hit in (Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue)) {
+            $candidates += $hit.FullName
+        }
+    }
+    foreach ($cand in $candidates) {
+        $pyver = Get-PythonVersion $cand
+        if ($pyver) {
             $python = $cand
-            $pyver = "$out".Trim()
             break
         }
     }
-    catch { }
+    if ($python) { Say "[1/5] 找到 Python $pyver （$python）" }
 }
 
 if (-not $python) {
@@ -68,7 +96,6 @@ if (-not $python) {
     Say "      那是微软放的占位符，不是真的 Python。"
     Fail "缺少 Python"
 }
-Say "[1/5] 找到 Python $pyver （$python）"
 
 $parts = $pyver.Split(".")
 if ([int]$parts[0] -lt 3 -or ([int]$parts[0] -eq 3 -and [int]$parts[1] -lt 10)) {
