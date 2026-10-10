@@ -140,21 +140,61 @@
 
     <div class="card">
       <h3>手动加人</h3>
-      {% if not free_members %}
+
+      {% if slots %}
+      <div class="small" style="margin-bottom:10px">
+        还能加 <b>{{ slots.remaining if slots.remaining > 0 else 0 }}</b> 人
+        （{{ slots.size }}/{{ slots.capacity }}）
+        · 还能加 <b>{{ slots.newbie_remaining if slots.newbie_remaining > 0 else 0 }}</b> 个新手
+        （{{ slots.newbies }}/{{ slots.newbie_quota }}）
+      </div>
+      {% if slots.remaining <= 0 %}
+      <div class="alert error" style="margin-bottom:10px">
+        <div class="t">队伍人数已满</div>
+        <div class="d">要加人得先到<a href="{{ url_for('teams.edit', team_id=team['id']) }}">编辑队伍</a>把人数上限调高，或者先移出一个人。</div>
+      </div>
+      {% elif slots.newbie_remaining <= 0 %}
+      <div class="alert warn" style="margin-bottom:10px">
+        <div class="t">新手名额已满</div>
+        <div class="d">老手还能加进来，新手要等名额调高或有人毕业。</div>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      {% if not candidates %}
         <p class="muted small">目前没有未分配的成员。</p>
       {% else %}
+      {% set usable = candidates | rejectattr('problem') | list %}
       <form method="post" action="{{ url_for('teams.add_members', team_id=team['id']) }}">
         {{ ui.csrf() }}
         <div class="field">
           <label>从未分配成员中选择（可多选）</label>
           <select name="member_id" multiple size="10">
-            {% for member in free_members %}
-            <option value="{{ member['id'] }}">{{ member['name'] }}（{{ experience_labels.get(member['experience']) }} / {{ intent_labels.get(member['intent']) }}）</option>
+            {% for item in candidates %}
+            <option value="{{ item.member['id'] }}" {{ 'disabled' if item.problem }}>
+              {{ item.member['name'] }}（{{ experience_labels.get(item.member['experience']) }} / {{ intent_labels.get(item.member['intent']) }}）{% if item.problem %} —— 加不进来{% endif %}
+            </option>
             {% endfor %}
           </select>
+          <div class="hint">
+            灰色的选项现在加不进来（人数满或新手名额满），鼠标放到选项上看不到原因的话，往下翻有逐个说明。
+          </div>
         </div>
-        <button class="btn primary" type="submit">加入本队</button>
+        <button class="btn primary" type="submit" {{ 'disabled' if not usable }}>加入本队</button>
+        {% if not usable %}<span class="small muted" style="margin-left:8px">当前没有人能加进来</span>{% endif %}
       </form>
+
+      {% set blocked = candidates | selectattr('problem') | list %}
+      {% if blocked %}
+      <details style="margin-top:10px">
+        <summary>为什么这 {{ blocked|length }} 个人加不进来</summary>
+        <div class="small" style="margin-top:6px">
+          {% for item in blocked %}
+          <div>· <b>{{ item.member['name'] }}</b>：{{ item.problem }}</div>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
       {% endif %}
     </div>
 

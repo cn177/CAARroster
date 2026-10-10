@@ -1,4 +1,4 @@
-"""不正常推理协会 · 中国分部 —— 会员与队伍管理系统
+"""CAAR —— 会员与队伍管理系统
 
 启动：
     python app.py                      # 开发/内网直接跑
@@ -206,11 +206,11 @@ def _run_production(host: str, port: int) -> None:
         return
     print(f"waitress 已启动：http://{host}:{port}")
     print("关闭这个窗口就是停止服务。按 Ctrl+C 也可以。")
-    serve(app, host=host, port=port, threads=8, ident="ARA-Roster")
+    serve(app, host=host, port=port, threads=8, ident="CAAR-Roster")
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="不正常推理协会会员与队伍管理系统")
+    parser = argparse.ArgumentParser(description="CAAR 会员与队伍管理系统")
     parser.add_argument("--host", default=os.environ.get("ARA_HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("ARA_PORT", "8000")))
     parser.add_argument("--debug", action="store_true")

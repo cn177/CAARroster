@@ -243,6 +243,60 @@ def main() -> int:
         response = client.get(url)
         check(response.status_code == 200, f"GET {url} → {response.status_code}")
 
+    print("\n[9.5] 人数上限与新手名额必须真的拦住（回归）")
+    with app.app_context():
+        # 注意：每支队伍用完全独立的人。add_to_team 会把人从原队移走，
+        # 复用同一个成员会让后面的断言测出假结果（这个坑是测试自己暴露的）。
+        limit_team = models.create_team({"name": "上限测试队", "kind": "casual",
+                                         "capacity": 2, "newbie_quota": 2}, actor="test")
+        quota_team = models.create_team({"name": "名额测试队", "kind": "mentor",
+                                         "capacity": 6, "newbie_quota": 1}, actor="test")
+        ids = {}
+        for name, exp in [("上限老手甲", "veteran"), ("上限老手乙", "veteran"),
+                          ("上限老手丙", "veteran"), ("名额新手甲", "newbie"),
+                          ("名额新手乙", "newbie"), ("名额老手丙", "veteran")]:
+            ids[name] = models.create_member({"name": name, "experience": exp}, "test")
+
+    # --- 人数上限
+    with app.app_context():
+        models.add_to_team(limit_team, ids["上限老手甲"], actor="test")
+        models.add_to_team(limit_team, ids["上限老手乙"], actor="test")
+        check(len(models.team_roster(limit_team)) == 2, "把上限测试队填到 2/2")
+        reason = None
+        try:
+            models.add_to_team(limit_team, ids["上限老手丙"], actor="test")
+        except models.TeamLimitError as exc:
+            reason = str(exc)
+        check(reason is not None and "人数已满" in reason, f"满员后加人被拦下：{reason}")
+        check(len(models.team_roster(limit_team)) == 2, "被拦下时队伍人数没有变")
+
+    # --- 新手名额（老手不该被名额挡住）
+    with app.app_context():
+        models.add_to_team(quota_team, ids["名额新手甲"], actor="test")
+        reason = None
+        try:
+            models.add_to_team(quota_team, ids["名额新手乙"], actor="test")
+        except models.TeamLimitError as exc:
+            reason = str(exc)
+        check(reason is not None and "新手名额已满" in reason, f"新手名额满后被拦下：{reason}")
+        models.add_to_team(quota_team, ids["名额老手丙"], actor="test")
+        check(len(models.team_roster(quota_team)) == 2, "新手名额满了，老手照样能进")
+
+    # --- 走真实的 HTTP 多选加人接口
+    response = client.post(f"/teams/{limit_team}/members/add",
+                           data={"_csrf": csrf(client), "member_id": str(ids["上限老手丙"])},
+                           follow_redirects=True)
+    html = response.get_data(as_text=True)
+    check("人数已满" in html, "多选加人出错时会把原因显示给用户")
+    check("已加入" not in html, "多选加人没有假装成功")
+    with app.app_context():
+        check(len(models.team_roster(limit_team)) == 2, "多选加人没有偷偷把人塞进去")
+
+    # --- 界面本身也要拦住：满员时不能加的人应该是禁用的
+    html = client.get(f"/teams/{limit_team}").get_data(as_text=True)
+    check("加不进来" in html, "队伍页把加不进来的人标出来了")
+    check("当前没有人能加进来" in html, "队伍页明确提示已经满了")
+
     print("\n[10] 安全边界")
     response = client.post("/teams/new", data={"name": "没有令牌的队"})
     check(response.status_code == 400, "缺少 CSRF 令牌的写操作被拒绝")

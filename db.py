@@ -208,7 +208,7 @@ def log(conn: sqlite3.Connection, actor: str, action: str, target: str = "", det
 
 # ------------------------------------------------------------------ 会员号
 def next_member_code(conn: sqlite3.Connection, prefix: str) -> str:
-    """生成 ARA-0001 这样的会员号，用 meta 表做自增，避免删人后号码重复。"""
+    """生成 CAAR-0001 这样的会员号，用 meta 表做自增，避免删人后号码重复。"""
     row = conn.execute("SELECT value FROM meta WHERE key='member_seq'").fetchone()
     seq = int(row["value"]) if row else 0
     while True:

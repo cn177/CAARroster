@@ -10,8 +10,8 @@ services:
       - "127.0.0.1:8000:8000"
     environment:
       ARA_DATA_DIR: /data
-      ARA_ORG_NAME: 不正常推理协会 · 中国分部
-      ARA_ORG_SHORT: ARA
+      ARA_ORG_NAME: CAAR
+      ARA_ORG_SHORT: CAAR
       ARA_TZ_OFFSET: "8"
       # 想固定会话密钥（多副本部署时需要）就打开这行
       # ARA_SECRET_KEY: "一串足够长的随机字符串"

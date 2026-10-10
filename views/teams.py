@@ -94,7 +94,16 @@ def detail(team_id):
     profile = matching.skill_profile(roster)
     gaps = matching.team_gaps(profile)
     newbie_count = sum(1 for m in roster if m["experience"] == "newbie")
+    slots = models.team_slots(team_id)
     free_members = models.unassigned_members()
+
+    # 手动加人那一栏：逐个标出"这个人为什么加不进来"，并禁掉不能加的人。
+    # 光靠后端拦是不够的 —— 界面得先告诉运营为什么加不动。
+    candidates = [
+        {"member": member, "problem": models.team_limit_problem(team_id, member["id"])}
+        for member in free_members
+    ]
+
     suggestions = []
     for member in free_members:
         result = matching.evaluate(team, member, roster)
@@ -110,6 +119,8 @@ def detail(team_id):
         profile=profile,
         gaps=gaps,
         newbie_count=newbie_count,
+        slots=slots,
+        candidates=candidates,
         suggestions=suggestions[:8],
         free_members=free_members,
         skill_label=SKILL_LABEL,
@@ -167,13 +178,24 @@ def add_members(team_id):
     if not ids:
         flash("没有选择成员。", "error")
         return redirect(url_for("teams.detail", team_id=team_id))
-    added = 0
+    added, refused = 0, []
     for raw in ids:
         if not str(raw).isdigit():
             continue
-        models.add_to_team(team_id, int(raw), actor=_actor())
-        added += 1
-    flash(f"已加入 {added} 人。", "ok")
+        member_id = int(raw)
+        try:
+            models.add_to_team(team_id, member_id, actor=_actor())
+            added += 1
+        except models.TeamLimitError as exc:
+            member = models.get_member(member_id)
+            who = member["name"] if member else f"成员 {member_id}"
+            refused.append(f"{who} 没加进去：{exc}")
+    if added:
+        flash(f"已加入 {added} 人。", "ok")
+    for reason in refused:
+        flash(reason, "error")
+    if not added and not refused:
+        flash("没有有效的成员被选中。", "error")
     return redirect(url_for("teams.detail", team_id=team_id))
 
 
@@ -254,13 +276,17 @@ def apply_assignment():
     if not (member_id.isdigit() and team_id.isdigit()):
         flash("请选择要分配到的队伍。", "error")
     else:
-        result = models.add_to_team(int(team_id), int(member_id), actor=_actor())
         member = models.get_member(int(member_id))
         team = models.get_team(int(team_id))
-        if result == "already":
-            flash(f"{member['name']} 已经在「{team['name']}」里了。", "info")
+        try:
+            result = models.add_to_team(int(team_id), int(member_id), actor=_actor())
+        except models.TeamLimitError as exc:
+            flash(f"{member['name'] if member else member_id} 没分配成功：{exc}", "error")
         else:
-            flash(f"{member['name']} → 「{team['name']}」", "ok")
+            if result == "already":
+                flash(f"{member['name']} 已经在「{team['name']}」里了。", "info")
+            else:
+                flash(f"{member['name']} → 「{team['name']}」", "ok")
     return redirect(url_for(
         "teams.assign",
         experience=request.form.get("keep_experience", ""),
@@ -308,15 +334,23 @@ def apply_draft():
     if not draft or not draft.get("assignments"):
         flash("当前没有待确认的草案。", "error")
         return redirect(url_for("teams.assign"))
-    count = 0
+    count, refused = 0, []
     for item in draft["assignments"]:
         try:
             models.add_to_team(int(item["team_id"]), int(item["member_id"]), actor=_actor())
             count += 1
+        except models.TeamLimitError as exc:
+            # 草案生成之后队伍可能被人动过，所以这里要重新校验一遍
+            refused.append(f"{item.get('member_name', '?')} → {item.get('team_name', '?')}：{exc}")
         except Exception:  # noqa: BLE001 - 某一条失败不影响其它
             continue
     models.clear_draft(actor=_actor())
-    flash(f"草案已执行，{count} 人入队。", "ok")
+    if count:
+        flash(f"草案已执行，{count} 人入队。", "ok")
+    for reason in refused:
+        flash(f"有 {len(refused)} 人没进去 —— {reason}", "error")
+    if not count and not refused:
+        flash("草案里的人都没能入队。", "warn")
     return redirect(url_for("teams.assign"))
 
 

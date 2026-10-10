@@ -15,12 +15,12 @@ DB_PATH = Path(os.environ.get("ARA_DB", DATA_DIR / "roster.db"))
 TMP_DIR = DATA_DIR / "tmp"
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 
-# 会员号前缀，例如 ARA-0001
-MEMBER_CODE_PREFIX = os.environ.get("ARA_CODE_PREFIX", "ARA")
+# 会员号前缀，例如 CAAR-0001
+MEMBER_CODE_PREFIX = os.environ.get("ARA_CODE_PREFIX", "CAAR")
 
 # 协会名称，显示在页面上
-ORG_NAME = os.environ.get("ARA_ORG_NAME", "不正常推理协会 · 中国分部")
-ORG_SHORT = os.environ.get("ARA_ORG_SHORT", "ARA")
+ORG_NAME = os.environ.get("ARA_ORG_NAME", "CAAR")
+ORG_SHORT = os.environ.get("ARA_ORG_SHORT", "CAAR")
 
 # 默认队伍人数上限（可在每个队伍/赛事上单独设置）
 DEFAULT_TEAM_CAPACITY = int(os.environ.get("ARA_TEAM_CAPACITY", "6"))

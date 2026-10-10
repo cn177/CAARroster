@@ -1,4 +1,4 @@
-# 不正常推理协会 · 中国分部 —— 会员与队伍管理系统
+# CAAR —— 会员与队伍管理系统
 
 一个**只给运营用**的内部后台，管三件事：
 
@@ -482,8 +482,8 @@ roster/
 | `ARA_DB` | `$ARA_DATA_DIR/roster.db` | 数据库文件路径 |
 | `ARA_SECRET_KEY` | 自动生成并存盘 | 会话签名密钥。多副本部署要显式指定 |
 | `ARA_HOST` / `ARA_PORT` | `127.0.0.1` / `8000` | 监听地址 |
-| `ARA_ORG_NAME` / `ARA_ORG_SHORT` | 协会名 / `ARA` | 页面显示名 |
-| `ARA_CODE_PREFIX` | `ARA` | 会员号前缀，如 `ARA-0001` |
+| `ARA_ORG_NAME` / `ARA_ORG_SHORT` | `CAAR` / `CAAR` | 页面显示名 |
+| `ARA_CODE_PREFIX` | `CAAR` | 会员号前缀，如 `CAAR-0001` |
 | `ARA_COLLECT_IDENTITY` | `0` | **是否收集真实姓名和手机号** |
 | `ARA_MINOR_AGE` | `14` | 未成年人提醒的年龄线 |
 | `ARA_TEAM_CAPACITY` | `6` | 新建队伍的默认人数上限 |

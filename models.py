@@ -18,6 +18,20 @@ MEMBER_FIELDS = [
 INT_FIELDS = {"hunts_played", "wants_mentor", "mentor_capacity", "hours_available",
               "voice_ok", "age"}
 
+# 程序化建人（脚本、测试、以后的 API）时，没传的字段用这些兜底。
+# 不兜底的话会把 None 塞进 NOT NULL 列，报一个很难懂的 sqlite3.IntegrityError。
+MEMBER_DEFAULTS = {
+    "experience": "newbie",
+    "intent": "any",
+    "sleep_schedule": "flexible",
+    "status": "active",
+    "skills": {},
+    "hunts_played": 0,
+    "wants_mentor": 0,
+    "mentor_capacity": 0,
+    "voice_ok": 1,
+}
+
 
 # ================================================================== 成员
 def _row_to_member(row) -> dict:
@@ -115,7 +129,13 @@ def find_duplicate(name="", phone="", qq="", discord="", email="", exclude_id=No
 
 def create_member(data: dict, actor: str = "", batch_id=None) -> int:
     db = get_db()
-    payload = {f: data.get(f) for f in MEMBER_FIELDS}
+    payload = {}
+    for field in MEMBER_FIELDS:
+        value = data.get(field)
+        if value is None or value == "":
+            if field in MEMBER_DEFAULTS:
+                value = MEMBER_DEFAULTS[field]
+        payload[field] = value
     payload["name"] = (payload.get("name") or "").strip() or "未命名"
     for f in INT_FIELDS:
         if payload.get(f) in (None, ""):
@@ -126,6 +146,8 @@ def create_member(data: dict, actor: str = "", batch_id=None) -> int:
         payload["mentor_capacity"] = 0
     if isinstance(payload.get("skills"), (dict, list)):
         payload["skills"] = json.dumps(payload["skills"], ensure_ascii=False)
+    elif not payload.get("skills"):
+        payload["skills"] = "{}"
     if not payload.get("status"):
         payload["status"] = "active"
 
@@ -310,8 +332,78 @@ def delete_team(team_id: int, actor: str = "") -> None:
     db.commit()
 
 
-def add_to_team(team_id: int, member_id: int, role: str = "", actor: str = "") -> str:
-    """把成员放进队伍。返回 'ok' / 'already' / 'moved'。"""
+class TeamLimitError(Exception):
+    """加入队伍会超出人数上限或新手名额。调用方负责把它变成给用户看的提示。"""
+
+
+def team_slots(team_id: int) -> dict:
+    """这支队伍还剩多少位置：总人数 + 新手名额。"""
+    db = get_db()
+    team = db.execute("SELECT * FROM teams WHERE id=?", (team_id,)).fetchone()
+    if not team:
+        return {}
+    row = db.execute(
+        """SELECT COUNT(*) AS size,
+                  COALESCE(SUM(CASE WHEN m.experience='newbie' THEN 1 ELSE 0 END), 0) AS newbies
+             FROM team_members tm JOIN members m ON m.id = tm.member_id
+            WHERE tm.team_id=? AND tm.left_at IS NULL""",
+        (team_id,),
+    ).fetchone()
+    size = row["size"] or 0
+    newbies = row["newbies"] or 0
+    capacity = int(team["capacity"] or 0)
+    quota = int(team["newbie_quota"] or 0)
+    return {
+        "team": dict(team),
+        "size": size,
+        "capacity": capacity,
+        "remaining": capacity - size,
+        "newbies": newbies,
+        "newbie_quota": quota,
+        "newbie_remaining": quota - newbies,
+    }
+
+
+def team_limit_problem(team_id: int, member_id: int) -> str | None:
+    """把这个人放进这支队伍会不会超限？返回拒绝原因，None 表示可以加。
+
+    人数上限和新手名额是运营自己声明的约束，写操作必须真的守住 ——
+    否则推荐算法里那些"名额已满"的提示就只是装饰品。
+    """
+    db = get_db()
+    slots = team_slots(team_id)
+    if not slots:
+        return "队伍不存在。"
+    already = db.execute(
+        "SELECT 1 FROM team_members WHERE team_id=? AND member_id=? AND left_at IS NULL",
+        (team_id, member_id),
+    ).fetchone()
+    if already:
+        return None  # 已经在队里，不算新增
+
+    name = slots["team"]["name"]
+    if slots["remaining"] <= 0:
+        return (f"「{name}」人数已满（{slots['size']}/{slots['capacity']}）。"
+                f"确实要加就先调高这支队伍的人数上限，或者先移出一个人。")
+    member = db.execute("SELECT experience FROM members WHERE id=?", (member_id,)).fetchone()
+    if member and member["experience"] == "newbie" and slots["newbie_remaining"] <= 0:
+        return (f"「{name}」的新手名额已满（{slots['newbies']}/{slots['newbie_quota']}）。"
+                f"想让它多带新手，就先把新手名额调高。")
+    return None
+
+
+def add_to_team(team_id: int, member_id: int, role: str = "", actor: str = "",
+                enforce_limits: bool = True) -> str:
+    """把成员放进队伍。返回 'ok' / 'already' / 'moved'。
+
+    超编或新手名额满时抛 TeamLimitError。只有明确知道自己在绕过的场景
+    （比如指定队长）才传 enforce_limits=False。
+    """
+    if enforce_limits:
+        problem = team_limit_problem(team_id, member_id)
+        if problem:
+            raise TeamLimitError(problem)
+
     db = get_db()
     current = db.execute(
         "SELECT * FROM team_members WHERE member_id=? AND left_at IS NULL", (member_id,)
@@ -370,7 +462,9 @@ def set_captain(team_id: int, member_id: int, actor: str = "") -> None:
     db.execute("UPDATE teams SET captain_id=?, updated_at=? WHERE id=?",
                (member_id, now(), team_id))
     db.commit()
-    add_to_team(team_id, member_id, role="captain", actor=actor)
+    # 指定队长是明确的人事决定，不该被人数和名额挡住 —— 建队时队长往往就是第一个进来的人。
+    # 万一真的因此超编，队伍卡片和仪表盘上都会亮"超编"警告，看得见。
+    add_to_team(team_id, member_id, role="captain", actor=actor, enforce_limits=False)
     set_member_role(team_id, member_id, "captain", actor)
 
 

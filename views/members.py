@@ -126,10 +126,14 @@ def assign(member_id):
     if not team_id:
         flash("没有选择队伍。", "error")
         return redirect(back)
-    result = models.add_to_team(int(team_id), member_id, actor=_actor())
     team = models.get_team(int(team_id))
     if not team:
         flash("队伍不存在。", "error")
+        return redirect(back)
+    try:
+        result = models.add_to_team(int(team_id), member_id, actor=_actor())
+    except models.TeamLimitError as exc:
+        flash(f"{member['name']} 没能加入「{team['name']}」：{exc}", "error")
         return redirect(back)
     if result == "already":
         flash(f"{member['name']} 已经在「{team['name']}」里了。", "info")
