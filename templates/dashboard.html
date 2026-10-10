@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}仪表盘 · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>仪表盘</h1>
+    <div class="sub">协会现在有多少人、队伍缺什么人、哪些事今天必须处理</div>
+  </div>
+  <div class="btn-row">
+    <a class="btn" href="{{ url_for('data.import_home') }}">导入问卷星</a>
+    <a class="btn" href="{{ url_for('teams.create') }}">新建队伍</a>
+    <a class="btn primary" href="{{ url_for('teams.assign') }}">去分配台</a>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:18px">
+  <div class="stat"><div class="k">在册成员</div><div class="v">{{ stats.total }}</div></div>
+  <div class="stat"><div class="k">新手</div><div class="v">{{ stats.newbie }} <small>人</small></div></div>
+  <div class="stat"><div class="k">老手 / 大佬</div><div class="v">{{ stats.veteran + stats.elite }} <small>人</small></div></div>
+  <div class="stat">
+    <div class="k">已分队 / 未分配</div>
+    <div class="v">{{ stats.assigned }} <small>/ {{ stats.unassigned }} 未分配</small></div>
+  </div>
+</div>
+
+{% if alerts %}
+<div class="card">
+  <h3>需要处理</h3>
+  {% for alert in alerts %}
+  <div class="alert {{ alert.level }}">
+    <div class="t">
+      <a href="{{ url_for(alert.url[0], **alert.url[1]) }}">{{ alert.title }}</a>
+    </div>
+    <div class="d">{{ alert.detail }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card"><div class="alert info" style="margin:0"><div class="t">一切正常</div>
+  <div class="d">没有落单的人，也没有超编的队伍。</div></div></div>
+{% endif %}
+
+<h2>队伍概览（{{ stats.teams }} 支）</h2>
+{% if not teams %}
+  <div class="card empty">还没有队伍。先建几支班底，再把新手分配进去。</div>
+{% else %}
+<div class="grid grid-3">
+  {% for team in teams %}
+  <div class="card" style="margin:0">
+    <div class="teamcard-head">
+      <a href="{{ url_for('teams.detail', team_id=team['id']) }}" style="font-weight:600">{{ team['name'] }}</a>
+      <span class="badge {{ team['kind'] }}">{{ team_kinds.get(team['kind'], team['kind']) if team_kinds else team['kind'] }}</span>
+    </div>
+    <div class="small muted" style="margin-top:4px">
+      队长：{{ team['captain_name'] or '未指定' }} · 状态：{{ team['status'] }}
+    </div>
+    {{ ui.team_bar(team['size'], team['capacity'], team['size'] < team['capacity']) }}
+    <div class="small">
+      {{ team['size'] }}/{{ team['capacity'] }} 人 ·
+      新手 {{ team['newbie_count'] }}/{{ team['newbie_quota'] }}
+      {% if team['newbie_count'] > team['newbie_quota'] %}<span class="badge err">新手超额</span>{% endif %}
+    </div>
+    <div class="skills" style="margin-top:8px">
+      {{ ui.gap_chips(team['gaps'], skill_label, 3) }}
+      {% if not team['gaps'] %}<span class="badge ok">技能全覆盖</span>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<h2>最近的导入</h2>
+<div class="table-wrap">
+  <table class="narrow">
+    <thead><tr><th>文件</th><th class="num">总行数</th><th class="num">新增</th><th class="num">更新</th><th>时间</th></tr></thead>
+    <tbody>
+      {% for batch in batches %}
+      <tr>
+        <td>{{ batch['filename'] }}</td>
+        <td class="num">{{ batch['total_rows'] }}</td>
+        <td class="num">{{ batch['created_count'] }}</td>
+        <td class="num">{{ batch['updated_count'] }}</td>
+        <td class="small muted">{{ batch['created_at'] | localtime }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted small">还没有导入过任何文件。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

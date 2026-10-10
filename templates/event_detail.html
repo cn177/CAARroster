@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ event['name'] }} · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>{{ event['name'] }}</h1>
+    <div class="sub">
+      <span class="badge ghost">{{ kind_labels.get(event['kind'], event['kind']) }}</span>
+      {{ event['start_date'] or '—' }} ~ {{ event['end_date'] or '—' }}
+      · 队伍 {{ event['team_size_min'] }}–{{ event['team_size_max'] }} 人
+      {% if event['reg_deadline'] %}· 报名截止 {{ event['reg_deadline'] }}{% endif %}
+    </div>
+  </div>
+  <div class="btn-row">
+    <a class="btn" href="{{ url_for('data.export_event', event_id=event['id']) }}">导出报名表</a>
+    <a class="btn" href="{{ url_for('events.edit', event_id=event['id']) }}">编辑</a>
+    <form method="post" action="{{ url_for('events.delete', event_id=event['id']) }}"
+          data-confirm="删除赛事「{{ event['name'] }}」？报名记录会一起删除（队伍不受影响）。">
+      {{ ui.csrf() }}<button class="btn danger" type="submit">删除</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div>
+    <div class="card">
+      <h3>已报名队伍（{{ registrations|length }}）</h3>
+      {% if not registrations %}
+        <p class="muted small">还没有队伍报名。</p>
+      {% else %}
+      <div class="table-wrap">
+        <table class="narrow">
+          <thead><tr><th>队伍</th><th>类型</th><th class="num">人数</th><th></th></tr></thead>
+          <tbody>
+            {% for row in registrations %}
+            <tr>
+              <td><a href="{{ url_for('teams.detail', team_id=row['team_id']) }}">{{ row['team_name'] }}</a></td>
+              <td><span class="badge {{ row['team_kind'] }}">{{ team_kinds.get(row['team_kind'], row['team_kind']) }}</span></td>
+              <td class="num">{{ row['size'] }}</td>
+              <td class="right">
+                <form method="post" action="{{ url_for('events.unregister', event_id=event['id'], team_id=row['team_id']) }}"
+                      data-confirm="取消「{{ row['team_name'] }}」的报名？">
+                  {{ ui.csrf() }}<button class="btn small danger" type="submit">取消</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      {% if event['notes'] %}<p class="small" style="margin-top:12px">{{ event['notes'] }}</p>{% endif %}
+      {% if event['url'] %}<p class="small"><a href="{{ event['url'] }}" target="_blank" rel="noopener">赛事官网 / 规则</a></p>{% endif %}
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h3>报名一支队伍</h3>
+      <form method="post" action="{{ url_for('events.register', event_id=event['id']) }}">
+        {{ ui.csrf() }}
+        <div class="field">
+          <label>选择队伍</label>
+          <select name="team_id">
+            <option value="">— 请选择 —</option>
+            {% for team in teams %}
+            <option value="{{ team['id'] }}" {{ 'disabled' if team['id'] in registered_ids or team['problems'] }}>
+              {{ team['name'] }}（{{ team['size'] }} 人）
+              {%- if team['id'] in registered_ids %} · 已报名
+              {%- elif team['problems'] %} · {{ team['problems'] | join('，') }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>备注</label><input type="text" name="note"></div>
+        <button class="btn primary" type="submit">报名</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>所有队伍的人数合规情况</h3>
+      <table class="narrow">
+        <thead><tr><th>队伍</th><th class="num">人数</th><th>状态</th></tr></thead>
+        <tbody>
+          {% for team in teams %}
+          <tr>
+            <td><a href="{{ url_for('teams.detail', team_id=team['id']) }}">{{ team['name'] }}</a></td>
+            <td class="num">{{ team['size'] }}</td>
+            <td>
+              {% if team['problems'] %}<span class="badge err">{{ team['problems'] | join('；') }}</span>
+              {% elif team['id'] in registered_ids %}<span class="badge ok">已报名</span>
+              {% else %}<span class="badge ghost">可报名</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

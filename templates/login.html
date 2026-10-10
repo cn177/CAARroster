@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}登录 · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <div class="card">
+    <div class="login-title">{{ ORG_NAME }}</div>
+    <div class="sub" style="margin-bottom:18px">会员与队伍管理后台 · 仅限运营使用</div>
+    <form method="post">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="username">用户名</label>
+        <input type="text" id="username" name="username" autocomplete="username" autofocus required>
+      </div>
+      <div class="field">
+        <label for="password">密码</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
+      {% if locked_message %}
+      <div class="flash flash-error" style="margin-bottom:12px">{{ locked_message }}</div>
+      {% endif %}
+      <button class="btn primary" type="submit" style="width:100%">登录</button>
+    </form>
+  </div>
+  <p class="small muted" style="text-align:center">
+    第一次部署时用 <span class="mono">python app.py --create-admin 用户名 密码</span> 建账号
+  </p>
+</div>
+{% endblock %}

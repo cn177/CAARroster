@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ code }}{% endblock %}
+{% block content %}
+<div class="card" style="text-align:center;padding:44px 20px">
+  <div class="mono" style="font-size:40px;font-weight:700;color:#c8ced8">{{ code }}</div>
+  <p style="font-size:15px;margin:10px 0 18px">{{ message }}</p>
+  <a class="btn dark" href="{{ url_for('dashboard.index') }}">回到仪表盘</a>
+</div>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}队伍 · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div><h1>队伍</h1><div class="sub">常设班底。新手由运营从这里分配到各队。</div></div>
+  <div class="btn-row">
+    <a class="btn" href="{{ url_for('data.export_teams') }}">导出队伍名册</a>
+    <a class="btn primary" href="{{ url_for('teams.create') }}">新建队伍</a>
+  </div>
+</div>
+
+<form class="toolbar auto-submit" method="get">
+  <div class="field">
+    <label>类型</label>
+    <select name="kind">
+      <option value="">全部</option>
+      {% for key, label in team_kinds.items() %}
+      <option value="{{ key }}" {{ 'selected' if kind_filter == key }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>状态</label>
+    <select name="status">
+      <option value="">全部</option>
+      {% for key, label in team_statuses.items() %}
+      <option value="{{ key }}" {{ 'selected' if status_filter == key }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="btn-row"><a class="btn" href="{{ url_for('teams.listing') }}">重置</a></div>
+</form>
+
+{% if not teams %}
+  <div class="card empty">
+    目前没有队伍。<br>
+    建议先让老手自己拉班底，运营把队伍建进来，再把新手分配进去。
+  </div>
+{% else %}
+<div class="grid grid-3">
+  {% for team in teams %}
+  <div class="card" style="margin:0">
+    <div class="teamcard-head">
+      <a href="{{ url_for('teams.detail', team_id=team['id']) }}" style="font-weight:600">{{ team['name'] }}</a>
+      <span class="badge {{ team['kind'] }}">{{ team_kinds.get(team['kind'], team['kind']) }}</span>
+    </div>
+    <div class="small muted" style="margin-top:4px">
+      队长：{{ team['captain_name'] or '未指定' }}
+      · {{ team_statuses.get(team['status'], team['status']) }}
+      {% if team['voice_required'] %}· 需开麦{% endif %}
+    </div>
+    {{ ui.team_bar(team['size'], team['capacity'], team['size'] < team['capacity']) }}
+    <div class="small">
+      {{ team['size'] }}/{{ team['capacity'] }} 人 · 新手 {{ team['newbie_count'] }}/{{ team['newbie_quota'] }}
+      {% if team['size'] > team['capacity'] %}<span class="badge err">超编</span>{% endif %}
+      {% if team['newbie_count'] > team['newbie_quota'] %}<span class="badge err">新手超额</span>{% endif %}
+    </div>
+    {% if team['profile_desc'] %}
+    <div class="small muted" style="margin-top:6px">能力：{{ team['profile_desc'] | join('、') }}</div>
+    {% endif %}
+    <div class="skills" style="margin-top:8px">
+      {{ ui.gap_chips(team['gaps'], skill_label) }}
+      {% if not team['gaps'] %}<span class="badge ok">技能全覆盖</span>{% endif %}
+    </div>
+    {% if team['pitch'] %}<div class="small" style="margin-top:8px">{{ team['pitch'] }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

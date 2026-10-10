@@ -1,0 +1,25 @@
+services:
+  roster:
+    build: .
+    image: ara-roster:latest
+    container_name: ara-roster
+    restart: unless-stopped
+    # 只监听本机，外网访问请走 Nginx / Caddy 反代并上 HTTPS。
+    # 想临时直连就改成 "8000:8000"，然后自己加防火墙规则。
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      ARA_DATA_DIR: /data
+      ARA_ORG_NAME: 不正常推理协会 · 中国分部
+      ARA_ORG_SHORT: ARA
+      ARA_TZ_OFFSET: "8"
+      # 想固定会话密钥（多副本部署时需要）就打开这行
+      # ARA_SECRET_KEY: "一串足够长的随机字符串"
+
+      # 首次启动用它建管理账号，然后就可以把这行删掉了（账号已存在不会被覆盖）。
+      # 故意留空：宁可让你手动填一次，也不给一个能直接上线的默认弱口令。
+      # ARA_ADMIN_USER: admin
+      # ARA_ADMIN_PASSWORD: "换成你自己的强密码"
+    volumes:
+      # 数据库和上传临时文件都在这里，备份就是备份这个目录
+      - ./data:/data

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ '编辑赛事' if event_id else '新建赛事' }} · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>{{ '编辑赛事' if event_id else '新建赛事' }}</h1>
+    <div class="sub">人数上限一定要按赛事官方规则填，报名时系统靠它拦住不合规的队伍。</div>
+  </div>
+</div>
+
+<form method="post">
+  {{ ui.csrf() }}
+  <div class="card">
+    <div class="form-grid">
+      <div class="field"><label>赛事名 *</label>
+        <input type="text" name="name" value="{{ event.get('name', '') }}" required placeholder="CCBC 15 / PKU Puzzle Hunt / MITMH 2027"></div>
+      <div class="field"><label>简称（可留空）</label>
+        <input type="text" name="slug" value="{{ event.get('slug') or '' }}"></div>
+      <div class="field"><label>类型</label>
+        <select name="kind">
+          {% for key, label in kind_labels.items() %}
+          <option value="{{ key }}" {{ 'selected' if event.get('kind') == key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>开始日期</label>
+        <input type="date" name="start_date" value="{{ event.get('start_date') or '' }}"></div>
+      <div class="field"><label>结束日期</label>
+        <input type="date" name="end_date" value="{{ event.get('end_date') or '' }}"></div>
+      <div class="field"><label>报名截止</label>
+        <input type="date" name="reg_deadline" value="{{ event.get('reg_deadline') or '' }}"></div>
+      <div class="field"><label>队伍人数下限</label>
+        <input type="number" name="team_size_min" min="1" value="{{ event.get('team_size_min', 1) }}"></div>
+      <div class="field"><label>队伍人数上限</label>
+        <input type="number" name="team_size_max" min="1" value="{{ event.get('team_size_max', 6) }}"></div>
+      <div class="field"><label>官网 / 规则链接</label>
+        <input type="text" name="url" value="{{ event.get('url') or '' }}"></div>
+    </div>
+    <div class="field"><label>备注</label>
+      <textarea name="notes" rows="3">{{ event.get('notes') or '' }}</textarea></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn primary" type="submit">保存</button>
+    {% if event_id %}<a class="btn" href="{{ url_for('events.detail', event_id=event_id) }}">返回</a>
+    {% else %}<a class="btn" href="{{ url_for('events.listing') }}">返回列表</a>{% endif %}
+  </div>
+</form>
+
+{% endblock %}

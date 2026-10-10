@@ -1,0 +1,40 @@
+{# 通用小组件：徽章、技能条、CSRF 隐藏域 #}
+
+{% macro csrf() -%}
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+{%- endmacro %}
+
+{% macro exp_badge(exp, labels) -%}
+<span class="badge {{ exp }}">{{ labels.get(exp, exp) }}</span>
+{%- endmacro %}
+
+{% macro intent_badge(intent, labels) -%}
+<span class="badge ghost">{{ labels.get(intent, intent) }}</span>
+{%- endmacro %}
+
+{% macro skill_chips(skills, skill_label) -%}
+  {% if skills %}
+  <div class="skills">
+    {% for key, rating in skills|dictsort(by='value', reverse=true) %}
+      <span class="skill s{{ rating }}" title="{{ skill_label.get(key, key) }} 自评 {{ rating }}/5">{{ skill_label.get(key, key) }} {{ rating }}</span>
+    {% endfor %}
+  </div>
+  {% else %}<span class="muted small">未填技能</span>{% endif %}
+{%- endmacro %}
+
+{% macro gap_chips(gaps, skill_label, limit=4) -%}
+  {% for key in gaps[:limit] %}
+    <span class="gap">缺 {{ skill_label.get(key, key) }}</span>
+  {% endfor %}
+{%- endmacro %}
+
+{% macro member_link(member) -%}
+<a href="{{ url_for('members.detail', member_id=member['id']) }}">{{ member['name'] }}</a>
+{%- endmacro %}
+
+{% macro team_bar(size, capacity, hot=false) -%}
+  {% set ratio = (size / capacity * 100) if capacity else 0 %}
+  <div class="bar {{ 'full' if size >= capacity else ('hot' if hot) }}">
+    <i style="width: {{ [ratio, 100]|min }}%"></i>
+  </div>
+{%- endmacro %}

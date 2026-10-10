@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}导出 · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div><h1>导出</h1><div class="sub">给赛事报名、给老手看名单、给自己留档，都从这里出。</div></div>
+</div>
+
+<div class="grid grid-3">
+  <div class="card">
+    <h3>成员总表</h3>
+    <p class="small muted">全部成员（含退役）的完整档案，带所在队伍。内部留档用，含敏感信息。</p>
+    <a class="btn primary" href="{{ url_for('data.export_members') }}">下载成员总表.xlsx</a>
+  </div>
+  <div class="card">
+    <h3>队伍名册</h3>
+    <p class="small muted">按队伍展开的成员清单，适合贴到群里或给队长核对。</p>
+    <a class="btn primary" href="{{ url_for('data.export_teams') }}">下载队伍名册.xlsx</a>
+  </div>
+  <div class="card">
+    <h3>未分配名单</h3>
+    <p class="small muted">还没进队伍的人，方便离线排布或私下沟通。</p>
+    <a class="btn" href="{{ url_for('data.export_unassigned') }}">下载未分配名单.xlsx</a>
+  </div>
+</div>
+
+<h2>赛事报名表</h2>
+<div class="table-wrap">
+  <table class="narrow">
+    <thead><tr><th>赛事</th><th>日期</th><th>人数要求</th><th class="num">队伍</th><th></th></tr></thead>
+    <tbody>
+      {% for event in events %}
+      <tr>
+        <td><a href="{{ url_for('events.detail', event_id=event['id']) }}">{{ event['name'] }}</a></td>
+        <td class="small muted">{{ event['start_date'] or '—' }}</td>
+        <td class="small">{{ event['team_size_min'] }}–{{ event['team_size_max'] }} 人</td>
+        <td class="num">{{ event['team_count'] }}</td>
+        <td class="right"><a class="btn small" href="{{ url_for('data.export_event', event_id=event['id']) }}">导出</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted small">还没有赛事。到<a href="{{ url_for('events.listing') }}">赛事</a>页建一个。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

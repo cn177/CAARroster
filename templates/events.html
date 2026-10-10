@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}赛事 · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div><h1>赛事</h1><div class="sub">PKU、CCBC、MIT Mystery Hunt，以及我们自办的赛事。</div></div>
+  <a class="btn primary" href="{{ url_for('events.create') }}">新建赛事</a>
+</div>
+
+{% if not events %}
+  <div class="card empty">
+    还没有登记任何赛事。<br>
+    建议先建 CCBC / PKU / MITMH 三个常打的，把人数上限按各自规则填好，报名时系统会自动校验。
+  </div>
+{% else %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>赛事</th><th>类型</th><th>日期</th><th>队伍人数</th><th>报名截止</th><th class="num">已报名队伍</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for event in events %}
+      <tr>
+        <td><a href="{{ url_for('events.detail', event_id=event['id']) }}"><b>{{ event['name'] }}</b></a></td>
+        <td><span class="badge ghost">{{ kind_labels.get(event['kind'], event['kind']) }}</span></td>
+        <td class="small nowrap">{{ event['start_date'] or '—' }} ~ {{ event['end_date'] or '—' }}</td>
+        <td class="small">{{ event['team_size_min'] }}–{{ event['team_size_max'] }} 人</td>
+        <td class="small nowrap">{{ event['reg_deadline'] or '—' }}</td>
+        <td class="num">{{ event['team_count'] }}</td>
+        <td class="nowrap">
+          <a class="btn small" href="{{ url_for('data.export_event', event_id=event['id']) }}">导出报名表</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

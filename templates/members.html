@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}成员 · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div><h1>成员</h1><div class="sub">共 {{ members|length }} 条结果</div></div>
+  <div class="btn-row">
+    <a class="btn" href="{{ url_for('data.download_template') }}">下载导入模板</a>
+    <a class="btn primary" href="{{ url_for('members.create') }}">新增成员</a>
+  </div>
+</div>
+
+<form class="toolbar auto-submit" method="get">
+  <div class="field grow">
+    <label>搜索</label>
+    <input type="search" name="q" value="{{ filters.search }}" placeholder="昵称 / 会员号 / QQ / Discord / 备注">
+  </div>
+  <div class="field">
+    <label>经验</label>
+    <select name="experience">
+      <option value="">全部</option>
+      {% for key, label in experience_labels.items() %}
+      <option value="{{ key }}" {{ 'selected' if filters.experience == key }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>意向</label>
+    <select name="intent">
+      <option value="">全部</option>
+      {% for key, label in intent_labels.items() %}
+      <option value="{{ key }}" {{ 'selected' if filters.intent == key }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>分队状态</label>
+    <select name="assignment">
+      <option value="">全部</option>
+      <option value="free" {{ 'selected' if filters.assignment == 'free' }}>未分配</option>
+      <option value="assigned" {{ 'selected' if filters.assignment == 'assigned' }}>已分队</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>状态</label>
+    <select name="status">
+      <option value="active" {{ 'selected' if filters.status == 'active' }}>在册</option>
+      <option value="paused" {{ 'selected' if filters.status == 'paused' }}>暂离</option>
+      <option value="alumni" {{ 'selected' if filters.status == 'alumni' }}>退役</option>
+      <option value="all" {{ 'selected' if filters.status == 'all' }}>不限</option>
+    </select>
+  </div>
+  <div class="btn-row">
+    <button class="btn" type="submit">筛选</button>
+    <a class="btn" href="{{ url_for('members.listing') }}">重置</a>
+  </div>
+</form>
+
+{% if not members %}
+  <div class="card empty">
+    没有符合条件的成员。<br>
+    从问卷星导出的 Excel 可以直接在<a href="{{ url_for('data.import_home') }}">导入</a>页上传。
+  </div>
+{% else %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>会员号</th><th>昵称</th><th>经验</th><th>意向</th><th>技能</th>
+        <th>队伍</th><th>可投入</th><th>联系方式</th><th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for member in members %}
+      <tr>
+        <td class="num small">{{ member['code'] }}</td>
+        <td>
+          <a href="{{ url_for('members.detail', member_id=member['id']) }}"><b>{{ member['name'] }}</b></a>
+          {% if member['wants_mentor'] %}<span class="badge ghost">求带</span>{% endif %}
+          {% if member['mentor_capacity'] %}<span class="badge ghost">可带{{ member['mentor_capacity'] }}</span>{% endif %}
+          {% if member['age'] %}<span class="badge ghost">{{ member['age'] }}岁{% if member['age'] < MINOR_AGE %} ⚠{% endif %}</span>{% endif %}
+        </td>
+        <td>{{ ui.exp_badge(member['experience'], experience_labels) }}</td>
+        <td>{{ ui.intent_badge(member['intent'], intent_labels) }}</td>
+        <td style="min-width:190px">{{ ui.skill_chips(member['skills'], skill_label) }}</td>
+        <td>
+          {% if member['team_name'] %}
+            <a href="{{ url_for('teams.detail', team_id=member['team_id']) }}">{{ member['team_name'] }}</a>
+            <div class="small muted">{{ member['team_role'] }}</div>
+          {% else %}<span class="badge warn">未分配</span>{% endif %}
+        </td>
+        <td class="small nowrap">{{ member['hours_available'] or '—' }} h</td>
+        <td class="small">
+          {% if member['contact_discord'] %}<div>DC: {{ member['contact_discord'] }}</div>{% endif %}
+          {% if member['contact_qq'] %}<div>QQ: {{ member['contact_qq'] }}</div>{% endif %}
+        </td>
+        <td class="nowrap">
+          <a class="btn small" href="{{ url_for('members.edit', member_id=member['id']) }}">编辑</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

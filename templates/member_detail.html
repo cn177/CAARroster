@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ member['name'] }} · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>{{ member['name'] }} <span class="mono small muted">{{ member['code'] }}</span></h1>
+    <div class="sub">
+      {{ ui.exp_badge(member['experience'], experience_labels) }}
+      {{ ui.intent_badge(member['intent'], intent_labels) }}
+      <span class="badge ghost">{{ status_labels.get(member['status'], member['status']) }}</span>
+      {% if member['wants_mentor'] %}<span class="badge warn">希望被带</span>{% endif %}
+      {% if member['mentor_capacity'] %}<span class="badge ok">可带 {{ member['mentor_capacity'] }} 位新手</span>{% endif %}
+    </div>
+  </div>
+  <div class="btn-row">
+    <a class="btn" href="{{ url_for('members.edit', member_id=member['id']) }}">编辑</a>
+    <form method="post" action="{{ url_for('members.delete', member_id=member['id']) }}"
+          data-confirm="确定删除 {{ member['name'] }}？他会同时退出所在队伍，历史记录也会一起删掉。">
+      {{ ui.csrf() }}
+      <button class="btn danger" type="submit">删除</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div>
+    <div class="card">
+      <h3>技能</h3>
+      {{ ui.skill_chips(member['skills'], skill_label) }}
+    </div>
+
+    <div class="card">
+      <h3>参赛参数</h3>
+      <table class="narrow">
+        <tbody>
+          <tr><th>年龄</th>
+            <td>{{ member['age'] or '—' }}
+              {% if member['age'] and member['age'] < MINOR_AGE %}
+              <span class="badge err">未满 {{ MINOR_AGE }} 岁 · 敏感个人信息</span>
+              {% endif %}
+            </td></tr>
+          <tr><th>参赛次数</th><td>{{ member['hunts_played'] }}</td></tr>
+          <tr><th>可投入</th><td>{{ member['hours_available'] or '—' }} 小时</td></tr>
+          <tr><th>作息</th><td>{{ sleep_labels.get(member['sleep_schedule'], member['sleep_schedule']) }}</td></tr>
+          <tr><th>能否开麦</th><td>{{ '是' if member['voice_ok'] else '否' }}</td></tr>
+          <tr><th>最好成绩</th><td>{{ member['best_result'] or '—' }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>联系方式</h3>
+      <table class="narrow">
+        <tbody>
+          <tr><th>QQ</th><td>{{ member['contact_qq'] or '—' }}</td></tr>
+          <tr><th>Discord</th><td>{{ member['contact_discord'] or '—' }}</td></tr>
+          <tr><th>邮箱</th><td>{{ member['contact_email'] or '—' }}</td></tr>
+          {% if COLLECT_IDENTITY %}
+          <tr><th>手机</th><td>{{ member['phone'] or '—' }}</td></tr>
+          <tr><th>真实姓名</th><td>{{ member['real_name'] or '—' }}</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+      <div class="hint">
+        {% if COLLECT_IDENTITY %}
+        真实姓名和手机号属于敏感信息，只用于内部核对，别导出给外部赛事。
+        {% else %}
+        本系统按最小必要原则只收 QQ / Discord / 邮箱 / 年龄。对外发的名单请用「赛事报名表」。
+        {% endif %}
+      </div>
+    </div>
+
+    {% if member['notes'] %}
+    <div class="card"><h3>备注</h3><div class="small">{{ member['notes'] }}</div></div>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="card">
+      <h3>当前队伍</h3>
+      {% if member['team_name'] %}
+        <p style="font-size:16px">
+          <a href="{{ url_for('teams.detail', team_id=member['team_id']) }}"><b>{{ member['team_name'] }}</b></a>
+          <span class="badge ghost">{{ member['team_role'] }}</span>
+        </p>
+        <form method="post" action="{{ url_for('members.assign', member_id=member['id']) }}"
+              data-confirm="把 {{ member['name'] }} 移出「{{ member['team_name'] }}」？">
+          {{ ui.csrf() }}
+          <input type="hidden" name="action" value="leave">
+          <button class="btn danger" type="submit">移出队伍</button>
+        </form>
+      {% else %}
+        <p class="muted">还没有队伍。</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h3>{{ '转到其它队伍' if member['team_name'] else '分配队伍' }}</h3>
+      <form method="post" action="{{ url_for('members.assign', member_id=member['id']) }}">
+        {{ ui.csrf() }}
+        <div class="field">
+          <label>选择队伍</label>
+          <select name="team_id">
+            <option value="">— 请选择 —</option>
+            {% for team in teams %}
+            <option value="{{ team['id'] }}" {{ 'disabled' if team['id'] == member['team_id'] }}>
+              {{ team['name'] }}（{{ team['size'] }}/{{ team['capacity'] }} 人，新手 {{ team['newbie_count'] }}/{{ team['newbie_quota'] }}）
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn primary" type="submit">确认</button>
+        <a class="btn" href="{{ url_for('teams.assign') }}">去分配台看建议</a>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>队伍履历</h3>
+      <table class="narrow">
+        <thead><tr><th>队伍</th><th>角色</th><th>加入</th><th>离开</th></tr></thead>
+        <tbody>
+          {% for row in history %}
+          <tr>
+            <td><a href="{{ url_for('teams.detail', team_id=row['team_id']) }}">{{ row['team_name'] }}</a></td>
+            <td class="small">{{ row['team_role'] }}</td>
+            <td class="small muted">{{ row['joined_at'] | localtime('%Y-%m-%d') }}</td>
+            <td class="small muted">{{ row['left_at'] | localtime('%Y-%m-%d') if row['left_at'] else '在队' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="muted small">没有履历。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

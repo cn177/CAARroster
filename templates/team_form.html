@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ '编辑队伍' if team_id else '新建队伍' }} · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>{{ '编辑队伍' if team_id else '新建队伍' }}</h1>
+    <div class="sub">人数上限按赛事规则填；新手名额是老手愿意带的人数，别贪多。</div>
+  </div>
+</div>
+
+<form method="post">
+  {{ ui.csrf() }}
+  <div class="card">
+    <div class="form-grid">
+      <div class="field"><label>队伍名 *</label>
+        <input type="text" name="name" value="{{ team.get('name', '') }}" required></div>
+      <div class="field"><label>类型</label>
+        <select name="kind">
+          {% for key, label in team_kinds.items() %}
+          <option value="{{ key }}" {{ 'selected' if team.get('kind') == key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>状态</label>
+        <select name="status">
+          {% for key, label in team_statuses.items() %}
+          <option value="{{ key }}" {{ 'selected' if team.get('status') == key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>人数上限</label>
+        <input type="number" name="capacity" min="1" value="{{ team.get('capacity', 6) }}"></div>
+      <div class="field"><label>新手名额</label>
+        <input type="number" name="newbie_quota" min="0" value="{{ team.get('newbie_quota', 2) }}"></div>
+      <div class="field"><label>队长</label>
+        <select name="captain_id">
+          <option value="">— 暂不指定 —</option>
+          {% for candidate in candidates %}
+          <option value="{{ candidate['id'] }}" {{ 'selected' if team.get('captain_id') == candidate['id'] }}>
+            {{ candidate['name'] }}（{{ candidate['experience'] }}{% if candidate['team_name'] %} · 现在 {{ candidate['team_name'] }}{% endif %}）
+          </option>
+          {% endfor %}
+        </select>
+        <div class="hint">指定队长会自动把 TA 加进队伍并设为队长角色。</div>
+      </div>
+    </div>
+    <div class="field"><label>招募说明（其他人在分配台会看到）</label>
+      <textarea name="pitch" rows="2" placeholder="比如：打 CCBC，节奏偏休闲，主要晚上在线，缺一个会写脚本的">{{ team.get('pitch', '') }}</textarea></div>
+    <div class="field"><label>本届目标</label>
+      <input type="text" name="goal" value="{{ team.get('goal', '') }}" placeholder="比如：进前 30 / 完赛就行"></div>
+    <label class="check"><input type="checkbox" name="voice_required" value="1"
+      {{ 'checked' if team.get('voice_required') }}> 要求队员赛期内能开麦</label>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn primary" type="submit">保存</button>
+    {% if team_id %}<a class="btn" href="{{ url_for('teams.detail', team_id=team_id) }}">返回</a>
+    {% else %}<a class="btn" href="{{ url_for('teams.listing') }}">返回列表</a>{% endif %}
+  </div>
+</form>
+
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ '编辑成员' if member and member.get('id') else '新增成员' }} · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>{{ '编辑成员' if member and member.get('id') else '新增成员' }}</h1>
+    <div class="sub">技能自评填 0 表示不会，1–5 表示从入门到能扛队。这直接影响分配建议。</div>
+  </div>
+</div>
+
+<form method="post">
+  {{ ui.csrf() }}
+  <div class="card">
+    <h3>基本信息</h3>
+    <div class="form-grid">
+      <div class="field"><label>昵称 / 圈名 *</label>
+        <input type="text" name="name" value="{{ member.get('name', '') if member else '' }}" required></div>
+      <div class="field"><label>年龄</label>
+        <input type="number" name="age" min="1" max="120" placeholder="填出生年份也行"
+               value="{{ member.get('age') if member and member.get('age') is not none else '' }}">
+        <div class="hint">只用于年龄段匹配。未满 {{ MINOR_AGE }} 岁属于敏感个人信息，处理前需要监护人同意。</div>
+      </div>
+      {% if COLLECT_IDENTITY %}
+      <div class="field"><label>真实姓名（内部用，别外传）</label>
+        <input type="text" name="real_name" value="{{ member.get('real_name') or '' if member else '' }}"></div>
+      {% endif %}
+      <div class="field"><label>QQ</label>
+        <input type="text" name="contact_qq" value="{{ member.get('contact_qq') or '' if member else '' }}"></div>
+      <div class="field"><label>Discord</label>
+        <input type="text" name="contact_discord" value="{{ member.get('contact_discord') or '' if member else '' }}"></div>
+      <div class="field"><label>邮箱</label>
+        <input type="text" name="contact_email" value="{{ member.get('contact_email') or '' if member else '' }}"></div>
+      {% if COLLECT_IDENTITY %}
+      <div class="field"><label>手机号</label>
+        <input type="text" name="phone" value="{{ member.get('phone') or '' if member else '' }}"></div>
+      {% endif %}
+    </div>
+    {% if not COLLECT_IDENTITY %}
+    <div class="hint" style="margin-top:4px">
+      当前配置不收集真实姓名和手机号（最小必要原则）。真要收就设环境变量
+      <span class="mono">ARA_COLLECT_IDENTITY=1</span> 重启。
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>参赛画像</h3>
+    <div class="form-grid">
+      <div class="field"><label>经验等级</label>
+        <select name="experience">
+          {% for key, label in experience_labels.items() %}
+          <option value="{{ key }}" {{ 'selected' if member and member.get('experience') == key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>参赛次数</label>
+        <input type="number" name="hunts_played" min="0" value="{{ member.get('hunts_played', 0) if member else 0 }}"></div>
+      <div class="field"><label>参赛意向</label>
+        <select name="intent">
+          {% for key, label in intent_labels.items() %}
+          <option value="{{ key }}" {{ 'selected' if member and member.get('intent') == key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>赛期内可投入小时数</label>
+        <input type="number" name="hours_available" min="0" value="{{ member.get('hours_available') if member and member.get('hours_available') is not none else '' }}"></div>
+      <div class="field"><label>作息</label>
+        <select name="sleep_schedule">
+          {% for key, label in sleep_labels.items() %}
+          <option value="{{ key }}" {{ 'selected' if member and member.get('sleep_schedule') == key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>状态</label>
+        <select name="status">
+          {% for key, label in status_labels.items() %}
+          <option value="{{ key }}" {{ 'selected' if member and member.get('status') == key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>可带新人数（老手填，愿意带几个新手）</label>
+        <input type="number" name="mentor_capacity" min="0" placeholder="{{ DEFAULT_MENTOR_CAPACITY }}"
+               value="{{ member.get('mentor_capacity', 0) if member else 0 }}">
+        <div class="hint">建议不超过 {{ DEFAULT_MENTOR_CAPACITY }} 个。带太多老手自己会先崩。</div>
+      </div>
+      <div class="field"><label>最好成绩 / 战绩</label>
+        <input type="text" name="best_result" value="{{ member.get('best_result') or '' if member else '' }}"></div>
+    </div>
+    <label class="check"><input type="checkbox" name="wants_mentor" value="1"
+      {{ 'checked' if member and member.get('wants_mentor') }}> 希望被老手带</label>
+    <label class="check"><input type="checkbox" name="voice_ok" value="1"
+      {{ 'checked' if not member or member.get('voice_ok') }}> 赛期内能开麦</label>
+  </div>
+
+  <div class="card">
+    <h3>技能自评</h3>
+    <div class="hint" style="margin-bottom:10px">0 = 不会；3 = 能凑合；4–5 = 队里靠你。分配建议会把你的强项往队伍的缺口上凑。</div>
+    <div class="form-grid">
+      {% for key, label in skills %}
+      <div class="field">
+        <label>{{ label }}</label>
+        <select name="skill_{{ key }}">
+          {% for rating in [0,1,2,3,4,5] %}
+          <option value="{{ rating }}" {{ 'selected' if member and (member.get('skills') or {}).get(key, 0) == rating }}>
+            {{ rating }} · {{ rating_labels.get(rating) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>备注</h3>
+    <textarea name="notes" rows="3" placeholder="比如：只会周末上线 / 之前在哪支队 / 出过什么题">{{ member.get('notes') or '' if member else '' }}</textarea>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn primary" type="submit">保存</button>
+    {% if member and member.get('id') %}
+    <a class="btn" href="{{ url_for('members.detail', member_id=member['id']) }}">返回详情</a>
+    {% else %}
+    <a class="btn" href="{{ url_for('members.listing') }}">返回列表</a>
+    {% endif %}
+  </div>
+</form>
+
+{% endblock %}

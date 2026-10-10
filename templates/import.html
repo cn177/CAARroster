@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}导入 · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>导入成员</h1>
+    <div class="sub">把问卷星导出的 Excel / CSV 直接拖进来，系统会自动认字段。</div>
+  </div>
+  <a class="btn" href="{{ url_for('data.download_template') }}">下载导入模板</a>
+</div>
+
+<div class="steps">
+  <span class="step on">1 上传文件</span>
+  <span>→</span><span>2 核对字段</span>
+  <span>→</span><span>3 确认入库</span>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>上传</h3>
+    <form method="post" action="{{ url_for('data.import_upload') }}" enctype="multipart/form-data">
+      {{ ui.csrf() }}
+      <div class="field">
+        <label>问卷星导出的文件（.xlsx / .csv）</label>
+        <input type="file" name="file" accept=".xlsx,.xlsm,.csv" required>
+      </div>
+      <button class="btn primary" type="submit">解析并预览</button>
+    </form>
+    <div class="hint" style="margin-top:10px">
+      问卷星免费版没有 API，从「分析&下载 → 下载答卷」导出 Excel 再上传即可。<br>
+      系统按 手机 &gt; QQ &gt; Discord &gt; 邮箱 &gt; 昵称 的顺序判断是不是同一个人：
+      已存在就更新，不存在才新建，不会重复建档案。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>会识别的字段</h3>
+    <div class="small muted">只要问卷标题里含这些词，就能自动对上；对不上可以在下一步手动改。</div>
+    <table class="narrow">
+      <tbody>
+        {% for key, label, keywords in field_rules %}
+        <tr>
+          <th style="width:110px">{{ label }}</th>
+          <td class="small muted">{{ keywords | join(' / ') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<h2>历史导入</h2>
+<div class="table-wrap">
+  <table class="narrow">
+    <thead><tr><th>时间</th><th>文件</th><th class="num">行数</th><th class="num">新增</th><th class="num">更新</th><th class="num">跳过</th></tr></thead>
+    <tbody>
+      {% for batch in batches %}
+      <tr>
+        <td class="small muted nowrap">{{ batch['created_at'] | localtime }}</td>
+        <td>{{ batch['filename'] }}</td>
+        <td class="num">{{ batch['total_rows'] }}</td>
+        <td class="num">{{ batch['created_count'] }}</td>
+        <td class="num">{{ batch['updated_count'] }}</td>
+        <td class="num">{{ batch['skipped_count'] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted small">还没有导入记录。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

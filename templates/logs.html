@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}日志 · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div><h1>操作日志</h1><div class="sub">谁在什么时候动了哪条数据。出问题时先看这里。</div></div>
+</div>
+
+<h2>导入批次</h2>
+<div class="table-wrap">
+  <table class="narrow">
+    <thead><tr><th>时间</th><th>文件</th><th class="num">行数</th><th class="num">新增</th><th class="num">更新</th><th class="num">跳过</th></tr></thead>
+    <tbody>
+      {% for batch in batches %}
+      <tr>
+        <td class="small muted nowrap">{{ batch['created_at'] | localtime }}</td>
+        <td>{{ batch['filename'] }}</td>
+        <td class="num">{{ batch['total_rows'] }}</td>
+        <td class="num">{{ batch['created_count'] }}</td>
+        <td class="num">{{ batch['updated_count'] }}</td>
+        <td class="num">{{ batch['skipped_count'] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted small">没有导入记录。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2>操作记录（最近 {{ logs|length }} 条）</h2>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>时间</th><th>操作者</th><th>动作</th><th>对象</th><th>详情</th></tr></thead>
+    <tbody>
+      {% for item in logs %}
+      <tr>
+        <td class="small muted nowrap">{{ item['created_at'] | localtime }}</td>
+        <td class="small">{{ item['actor'] }}</td>
+        <td class="small mono">{{ item['action'] }}</td>
+        <td class="small mono">{{ item['target'] }}</td>
+        <td class="small">
+          {% if item['detail'] %}
+          <details><summary>展开</summary><pre class="log">{{ item['detail'] }}</pre></details>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted small">还没有操作记录。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

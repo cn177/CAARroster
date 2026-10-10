@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}分配台 · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>分配台</h1>
+    <div class="sub">
+      左边是还没队伍的人，右边是还缺人的队伍。
+      每条推荐都写了理由，最终由你拍板 —— 系统不替人做决定。
+    </div>
+  </div>
+  <div class="btn-row">
+    <form method="post" action="{{ url_for('teams.make_draft') }}">
+      {{ ui.csrf() }}
+      <input type="hidden" name="only_newbies" value="1">
+      <button class="btn dark" type="submit" data-nolock>生成新手分配草案</button>
+    </form>
+    <a class="btn" href="{{ url_for('data.export_unassigned') }}">导出未分配名单</a>
+  </div>
+</div>
+
+{% if draft and draft.assignments %}
+<div class="card" style="border-color:#f0b79c;background:#fff8f4">
+  <h3>待确认的分配草案（{{ draft.assignments|length }} 人）</h3>
+  <div class="sub" style="margin-bottom:10px">
+    {{ '只针对新手' if draft.only_newbies else '包含所有未分配成员' }}，
+    由贪心算法生成，只考虑人数上限、新手名额和意向，没有考虑任何私人关系。执行前建议扫一眼。
+  </div>
+  <div class="table-wrap">
+    <table class="narrow">
+      <thead><tr><th>成员</th><th>→ 队伍</th><th class="num">评分</th><th>理由</th></tr></thead>
+      <tbody>
+        {% for item in draft.assignments %}
+        <tr>
+          <td>{{ item.member_name }} <span class="small muted mono">{{ item.member_code }}</span></td>
+          <td>{{ item.team_name }}</td>
+          <td class="num">{{ item.score }}</td>
+          <td class="small muted">{{ item.reasons | join('；') }}</td>
+        </tr>
+        {% endfor %}
+        {% if draft.leftovers %}
+        <tr>
+          <td colspan="4" class="small">
+            <b>没排上的 {{ draft.leftovers|length }} 人：</b>
+            {{ draft.leftovers | map(attribute='name') | join('、') }}
+            <span class="muted">（队伍满了或没有匹配的意向，需要手工处理）</span>
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  <div class="btn-row" style="margin-top:12px">
+    <form method="post" action="{{ url_for('teams.apply_draft') }}"
+          data-confirm="执行这份草案？会按列表把人分配进队。">
+      {{ ui.csrf() }}
+      <button class="btn primary" type="submit">执行草案</button>
+    </form>
+    <form method="post" action="{{ url_for('teams.clear_draft') }}">
+      {{ ui.csrf() }}
+      <button class="btn" type="submit">丢弃</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<form class="toolbar auto-submit" method="get">
+  <div class="field">
+    <label>经验</label>
+    <select name="experience">
+      <option value="">全部</option>
+      {% for key, label in experience_labels.items() %}
+      <option value="{{ key }}" {{ 'selected' if filters.experience == key }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>意向</label>
+    <select name="intent">
+      <option value="">全部</option>
+      {% for key, label in intent_labels.items() %}
+      <option value="{{ key }}" {{ 'selected' if filters.intent == key }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="small muted grow">未分配 {{ free|length }} 人 · 招募中的队伍 {{ live_teams|length }} 支</div>
+  <a class="btn" href="{{ url_for('teams.assign') }}">重置</a>
+</form>
+
+<div class="assign-layout">
+  <div>
+    <h2 style="margin-top:0">未分配（{{ free|length }}）</h2>
+    {% if not free %}
+      <div class="card empty">所有人都进队伍了。</div>
+    {% endif %}
+    {% for member in free %}
+    <div class="person">
+      <div class="person-top">
+        <span class="person-name">
+          <a href="{{ url_for('members.detail', member_id=member['id']) }}">{{ member['name'] }}</a>
+        </span>
+        <span class="small muted mono">{{ member['code'] }}</span>
+        {{ ui.exp_badge(member['experience'], experience_labels) }}
+        {{ ui.intent_badge(member['intent'], intent_labels) }}
+        {% if member['wants_mentor'] %}<span class="badge warn">求带</span>{% endif %}
+        {% if member['hours_available'] %}<span class="badge ghost">{{ member['hours_available'] }}h</span>{% endif %}
+      </div>
+      {{ ui.skill_chips(member['skills'], skill_label) }}
+
+      {% if member['recommendations'] %}
+        {% for item in member['recommendations'] %}
+        <div class="reco">
+          <span class="score">{{ item['score'] }}</span>
+          <b>{{ item['team']['name'] }}</b>
+          <span class="why">{{ item['reasons'] | join('；') }}</span>
+        </div>
+        {% endfor %}
+      {% elif not member['blocked'] %}
+        <div class="reco muted">没有明显合适的队伍（意向和技能都对不太上），需要你手工判断 —— 这种人多半是留存的胜负手。</div>
+      {% endif %}
+      {% for item in member['blocked'] %}
+        <div class="blocker">✗ {{ item['team']['name'] }}：{{ item['blockers'] | join('；') }}</div>
+      {% endfor %}
+
+      <form class="assign-form" method="post" action="{{ url_for('teams.apply_assignment') }}">
+        {{ ui.csrf() }}
+        <input type="hidden" name="member_id" value="{{ member['id'] }}">
+        <input type="hidden" name="keep_experience" value="{{ filters.experience }}">
+        <input type="hidden" name="keep_intent" value="{{ filters.intent }}">
+        <select name="team_id">
+          <option value="">— 选择队伍 —</option>
+          {% if member['recommendations'] %}
+          <optgroup label="系统推荐">
+            {% for item in member['recommendations'] %}
+            <option value="{{ item['team']['id'] }}">{{ item['team']['name'] }}（推荐 {{ item['score'] }}）</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+          <optgroup label="其它招募中的队伍">
+            {% for team in live_teams %}
+            <option value="{{ team['id'] }}">
+              {{ team['name'] }} · {{ team['size'] }}/{{ team['capacity'] }}人 ·
+              新手 {{ team['newbie_count'] }}/{{ team['newbie_quota'] }}
+            </option>
+            {% endfor %}
+          </optgroup>
+        </select>
+        <button class="btn small primary" type="submit" data-nolock>分配</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div>
+    <h2 style="margin-top:0">队伍（{{ teams|length }}）</h2>
+    {% for team in teams %}
+    <div class="teamcard">
+      <div class="teamcard-head">
+        <a href="{{ url_for('teams.detail', team_id=team['id']) }}"><b>{{ team['name'] }}</b></a>
+        <span>
+          <span class="badge {{ team['kind'] }}">{{ team_kinds.get(team['kind'], team['kind']) }}</span>
+          {% if team['status'] != 'recruiting' %}<span class="badge ghost">{{ team['status'] }}</span>{% endif %}
+        </span>
+      </div>
+      {{ ui.team_bar(team['size'], team['capacity'], team['size'] < team['capacity']) }}
+      <div class="small">
+        {{ team['size'] }}/{{ team['capacity'] }} 人 ·
+        新手 {{ team['newbie_count'] }}/{{ team['newbie_quota'] }}
+        · 队长 {{ team['captain_name'] or '未指定' }}
+      </div>
+      {% if team['profile_desc'] %}
+      <div class="small muted" style="margin-top:4px">能力：{{ team['profile_desc'] | join('、') }}</div>
+      {% endif %}
+      <div class="skills" style="margin-top:6px">
+        {{ ui.gap_chips(team['gaps'] if team['gaps'] is defined else [], skill_label) }}
+        {% if team['gaps'] is defined and not team['gaps'] %}<span class="badge ok">技能全覆盖</span>{% endif %}
+      </div>
+      {% if team['pitch'] %}<div class="small muted" style="margin-top:6px">{{ team['pitch'] }}</div>{% endif %}
+    </div>
+    {% else %}
+    <div class="card empty">还没有队伍，先去<a href="{{ url_for('teams.create') }}">建一支</a>。</div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

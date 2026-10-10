@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}核对导入 · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>核对字段</h1>
+    <div class="sub">
+      文件：{{ filename }} · 共 {{ rows_count }} 行，解析出 {{ parsed_count }} 条有效记录
+    </div>
+  </div>
+  <a class="btn" href="{{ url_for('data.import_home') }}">重新上传</a>
+</div>
+
+<div class="steps">
+  <span class="step">1 上传文件</span>
+  <span>→</span><span class="step on">2 核对字段</span>
+  <span>→</span><span>3 确认入库</span>
+</div>
+
+{% if warnings %}
+<div class="card">
+  <h3>需要注意</h3>
+  {% for warning in warnings %}<div class="alert warn">{{ warning }}</div>{% endfor %}
+</div>
+{% endif %}
+
+<form method="post">
+  {{ ui.csrf() }}
+  <input type="hidden" name="tmp" value="{{ tmp }}">
+  <input type="hidden" name="filename" value="{{ filename }}">
+
+  <div class="card">
+    <h3>字段对应</h3>
+    <div class="small muted" style="margin-bottom:10px">
+      左边是我们的字段，右边选文件里的哪一列。留空的字段不会导入。
+    </div>
+    <div class="form-grid">
+      {% for key, label, keywords in field_rules %}
+      <div class="field">
+        <label>{{ label }}{% if key == 'name' %} *{% endif %}</label>
+        <select name="map_{{ key }}">
+          <option value="">— 不导入 —</option>
+          {% for header in headers %}
+          <option value="{{ header }}" {{ 'selected' if mapping.get(key) == header }}>{{ header }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+    </div>
+    <label class="check">
+      <input type="checkbox" name="update_existing" value="1" checked>
+      遇到已存在的成员就更新（不勾选则只新增，重复的跳过）
+    </label>
+  </div>
+
+  <div class="card">
+    <h3>预览（前 {{ preview|length }} 条）</h3>
+    {% if not preview %}
+      <div class="alert error">没有解析出任何记录。检查一下「昵称」是不是选错列了。</div>
+    {% else %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>昵称</th><th>经验</th><th>意向</th><th>技能</th><th class="num">次数</th>
+              <th class="num">可投入</th><th>求带</th><th>可带新</th><th>联系方式</th></tr>
+        </thead>
+        <tbody>
+          {% for row in preview %}
+          <tr>
+            <td><b>{{ row.name }}</b></td>
+            <td>{{ experience_labels.get(row.experience, row.experience) }}</td>
+            <td>{{ intent_labels.get(row.intent, row.intent) }}</td>
+            <td>{{ ui.skill_chips(row.skills, skill_label) }}</td>
+            <td class="num">{{ row.hunts_played }}</td>
+            <td class="num">{{ row.hours_available or '—' }}</td>
+            <td>{{ '是' if row.wants_mentor else '' }}</td>
+            <td>{{ row.mentor_capacity or '' }}</td>
+            <td class="small">
+              {{ row.contact_discord or row.contact_qq or row.contact_email or '' }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="btn-row">
+    <button class="btn primary" type="submit" formaction="{{ url_for('data.import_confirm') }}">
+      确认导入 {{ parsed_count }} 条
+    </button>
+    <button class="btn" type="submit" formaction="{{ url_for('data.import_preview') }}" data-nolock>
+      按当前设置重新解析
+    </button>
+  </div>
+</form>
+
+{% endblock %}

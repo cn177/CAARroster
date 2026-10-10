@@ -1,0 +1,11 @@
+.venv/
+venv/
+data/
+__pycache__/
+*.py[cod]
+.git/
+.gitignore
+.idea/
+.vscode/
+*.md
+tests/

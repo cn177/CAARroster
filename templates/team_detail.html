@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ team['name'] }} · {{ ORG_NAME }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>{{ team['name'] }}</h1>
+    <div class="sub">
+      <span class="badge {{ team['kind'] }}">{{ team_kinds.get(team['kind'], team['kind']) }}</span>
+      <span class="badge ghost">{{ team_statuses.get(team['status'], team['status']) }}</span>
+      队长：{{ team['captain_name'] or '未指定' }}
+      {% if team['voice_required'] %}<span class="badge warn">需开麦</span>{% endif %}
+      {% if team['goal'] %}· 目标：{{ team['goal'] }}{% endif %}
+    </div>
+  </div>
+  <div class="btn-row">
+    <a class="btn" href="{{ url_for('teams.edit', team_id=team['id']) }}">编辑</a>
+    <form method="post" action="{{ url_for('teams.delete', team_id=team['id']) }}"
+          data-confirm="删除「{{ team['name'] }}」？成员会回到未分配池，报名记录一起删除。">
+      {{ ui.csrf() }}
+      <button class="btn danger" type="submit">删除队伍</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div>
+    <div class="card">
+      <h3>队伍状况</h3>
+      {{ ui.team_bar(team['size'], team['capacity'], team['size'] < team['capacity']) }}
+      <div class="small">
+        {{ team['size'] }}/{{ team['capacity'] }} 人 ·
+        新手 {{ newbie_count }}/{{ team['newbie_quota'] }}
+        {% if team['size'] > team['capacity'] %}<span class="badge err">超编</span>{% endif %}
+        {% if newbie_count > team['newbie_quota'] %}<span class="badge err">新手超额</span>{% endif %}
+      </div>
+      <div class="skills" style="margin-top:10px">
+        {{ ui.gap_chips(gaps, skill_label) }}
+        {% if not gaps %}<span class="badge ok">技能全覆盖</span>{% endif %}
+      </div>
+      {% if team['pitch'] %}<p class="small" style="margin-top:10px">{{ team['pitch'] }}</p>{% endif %}
+    </div>
+
+    <div class="card">
+      <h3>队内成员（{{ roster|length }}）</h3>
+      {% if not roster %}
+        <p class="muted small">空队。可以从下面的推荐名单里拉人。</p>
+      {% else %}
+      <div class="table-wrap">
+        <table class="narrow">
+          <thead><tr><th>成员</th><th>经验</th><th>角色</th><th>技能</th><th></th></tr></thead>
+          <tbody>
+            {% for member in roster %}
+            <tr>
+              <td>
+                <a href="{{ url_for('members.detail', member_id=member['id']) }}"><b>{{ member['name'] }}</b></a>
+                <div class="small muted mono">{{ member['code'] }}</div>
+              </td>
+              <td>{{ ui.exp_badge(member['experience'], experience_labels) }}</td>
+              <td>
+                <form method="post" action="{{ url_for('teams.set_role', team_id=team['id'], member_id=member['id']) }}"
+                      class="auto-submit">
+                  {{ ui.csrf() }}
+                  <select name="role">
+                    {% for role in ['captain', 'mentor', 'member', 'newbie'] %}
+                    <option value="{{ role }}" {{ 'selected' if member['team_role'] == role }}>{{ role }}</option>
+                    {% endfor %}
+                  </select>
+                </form>
+              </td>
+              <td>{{ ui.skill_chips(member['skills'], skill_label) }}</td>
+              <td class="nowrap">
+                <form method="post" action="{{ url_for('teams.remove_member', team_id=team['id'], member_id=member['id']) }}"
+                      data-confirm="把 {{ member['name'] }} 移出队伍？">
+                  {{ ui.csrf() }}
+                  <button class="btn small danger" type="submit">移出</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      <form method="post" action="{{ url_for('teams.set_captain', team_id=team['id']) }}" style="margin-top:12px">
+        {{ ui.csrf() }}
+        <div class="field" style="max-width:340px">
+          <label>指定队长</label>
+          <select name="captain_id">
+            <option value="">— 选择 —</option>
+            {% for member in roster %}
+            <option value="{{ member['id'] }}" {{ 'selected' if team['captain_id'] == member['id'] }}>{{ member['name'] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn small" type="submit">设为队长</button>
+      </form>
+    </div>
+
+    {% if former %}
+    <div class="card">
+      <h3>离队记录</h3>
+      <div class="small muted">
+        {% for member in former %}
+          {{ member['name'] }}（{{ member['left_at'] | localtime('%Y-%m-%d') }}）{% if not loop.last %} · {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="card">
+      <h3>系统推荐（基于技能缺口与意向）</h3>
+      {% if not suggestions %}
+        <p class="muted small">暂时没有合适的未分配成员，或者队伍已经满了。</p>
+      {% else %}
+        {% for item in suggestions %}
+        <div class="person">
+          <div class="person-top">
+            <span class="person-name">
+              <a href="{{ url_for('members.detail', member_id=item['member']['id']) }}">{{ item['member']['name'] }}</a>
+            </span>
+            {{ ui.exp_badge(item['member']['experience'], experience_labels) }}
+            {{ ui.intent_badge(item['member']['intent'], intent_labels) }}
+            <span class="reco"><span class="score">{{ item['score'] }}</span></span>
+          </div>
+          {{ ui.skill_chips(item['member']['skills'], skill_label) }}
+          <div class="reco" style="margin-top:6px"><span class="why">{{ item['reasons'] | join('；') }}</span></div>
+          <form method="post" action="{{ url_for('teams.add_members', team_id=team['id']) }}">
+            {{ ui.csrf() }}
+            <input type="hidden" name="member_id" value="{{ item['member']['id'] }}">
+            <button class="btn small primary" type="submit">加入本队</button>
+          </form>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h3>手动加人</h3>
+      {% if not free_members %}
+        <p class="muted small">目前没有未分配的成员。</p>
+      {% else %}
+      <form method="post" action="{{ url_for('teams.add_members', team_id=team['id']) }}">
+        {{ ui.csrf() }}
+        <div class="field">
+          <label>从未分配成员中选择（可多选）</label>
+          <select name="member_id" multiple size="10">
+            {% for member in free_members %}
+            <option value="{{ member['id'] }}">{{ member['name'] }}（{{ experience_labels.get(member['experience']) }} / {{ intent_labels.get(member['intent']) }}）</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn primary" type="submit">加入本队</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h3>赛事报名</h3>
+      <table class="narrow">
+        <thead><tr><th>赛事</th><th>人数要求</th><th></th></tr></thead>
+        <tbody>
+          {% for event in events %}
+          <tr>
+            <td><a href="{{ url_for('events.detail', event_id=event['id']) }}">{{ event['name'] }}</a></td>
+            <td class="small muted">{{ event['team_size_min'] }}–{{ event['team_size_max'] }} 人</td>
+            <td class="right">
+              {% if event['id'] in registered %}
+                <form method="post" action="{{ url_for('events.unregister', event_id=event['id'], team_id=team['id']) }}">
+                  {{ ui.csrf() }}<button class="btn small danger" type="submit">取消报名</button>
+                </form>
+              {% else %}
+                <form method="post" action="{{ url_for('events.register', event_id=event['id']) }}">
+                  {{ ui.csrf() }}
+                  <input type="hidden" name="team_id" value="{{ team['id'] }}">
+                  <button class="btn small" type="submit">报名</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="muted small">还没有创建赛事。到<a href="{{ url_for('events.create') }}">赛事页</a>建一个。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
